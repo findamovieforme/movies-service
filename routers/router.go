@@ -10,21 +10,19 @@ func InitRouter() *gin.Engine {
 	router := gin.Default()
 
 	// Initialize services and handlers
-	recommenderService := &services.RecommenderService{}
-	recommenderHandler := handlers.NewRecommenderHandler(recommenderService)
-
 	movieService := services.GetMovieService()
+
+	defaultHandler := handlers.NewDefaultHandler()
 	movieHandler := handlers.NewMovieHandler(movieService)
 
-	router.GET("/ping", func(c *gin.Context) {
-		c.JSON(200, gin.H{
-			"message": "pong",
-		})
-	})
+	// Add a base /movies to all routes
+	moviesGroup := router.Group("/movies")
 
 	// Define routes and their corresponding handlers
-	router.GET("/recommendations", gin.WrapF(recommenderHandler.FetchRecommendations))
-	router.GET("/movies", gin.WrapF(movieHandler.Fetchmovies().ServeHTTP))
+	moviesGroup.GET("/", defaultHandler.Default)
+	moviesGroup.GET("/ping", defaultHandler.Ping)
+	moviesGroup.GET("/trending", gin.WrapF(movieHandler.FetchTrendingMovies().ServeHTTP))
+	moviesGroup.GET("/recent", gin.WrapF(movieHandler.FetchRecentlyReleasedMovies().ServeHTTP))
 
 	return router
 }

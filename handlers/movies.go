@@ -4,6 +4,7 @@ package handlers
 
 import (
 	"net/http"
+	"strconv"
 
 	"github.com/movierecuh/movies-service/models"
 	"github.com/movierecuh/movies-service/services"
@@ -17,8 +18,28 @@ func NewMovieHandler(service services.MovieServiceInterface) *MovieHandler {
 	return &MovieHandler{Service: service}
 }
 
-func (h *MovieHandler) Fetchmovies() AppHandler {
+func (h *MovieHandler) FetchTrendingMovies() AppHandler {
 	return func(w http.ResponseWriter, r *http.Request) ([]models.Movie, error) {
-		return h.Service.GetMovies()
+		pageInt := getPageFromRequest(r)
+		return h.Service.GetTrendingMovies(pageInt)
 	}
+}
+
+func (h *MovieHandler) FetchRecentlyReleasedMovies() AppHandler {
+	return func(w http.ResponseWriter, r *http.Request) ([]models.Movie, error) {
+		pageInt := getPageFromRequest(r)
+		return h.Service.GetRecentMovies(pageInt)
+	}
+}
+
+// Helper function to parse page number from request
+func getPageFromRequest(r *http.Request) int {
+	page := r.URL.Query().Get("page")
+	pageInt := 1 // Default page
+	if page != "" {
+		if parsedPage, err := strconv.Atoi(page); err == nil {
+			pageInt = parsedPage
+		}
+	}
+	return pageInt
 }
