@@ -23,6 +23,7 @@ func InitRouter() *gin.Engine {
 	moviesGroup.GET("/ping", defaultHandler.Ping)
 	moviesGroup.GET("/trending", gin.WrapF(movieHandler.FetchTrendingMovies().ServeHTTP))
 	moviesGroup.GET("/recent", gin.WrapF(movieHandler.FetchRecentlyReleasedMovies().ServeHTTP))
+	moviesGroup.GET("/genres", gin.WrapF(movieHandler.FetchGenres().ServeHTTP))
 
 	return router
 }

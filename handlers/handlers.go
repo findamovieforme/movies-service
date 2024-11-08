@@ -3,11 +3,9 @@ package handlers
 import (
 	"encoding/json"
 	"net/http"
-
-	"github.com/movierecuh/movies-service/models"
 )
 
-type AppHandler func(http.ResponseWriter, *http.Request) ([]models.Movie, error)
+type AppHandler func(http.ResponseWriter, *http.Request) (interface{}, error)
 
 func (fn AppHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	data, err := fn(w, r)

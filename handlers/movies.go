@@ -6,7 +6,6 @@ import (
 	"net/http"
 	"strconv"
 
-	"github.com/movierecuh/movies-service/models"
 	"github.com/movierecuh/movies-service/services"
 )
 
@@ -19,16 +18,22 @@ func NewMovieHandler(service services.MovieServiceInterface) *MovieHandler {
 }
 
 func (h *MovieHandler) FetchTrendingMovies() AppHandler {
-	return func(w http.ResponseWriter, r *http.Request) ([]models.Movie, error) {
+	return func(w http.ResponseWriter, r *http.Request) (interface{}, error) {
 		pageInt := getPageFromRequest(r)
 		return h.Service.GetTrendingMovies(pageInt)
 	}
 }
 
 func (h *MovieHandler) FetchRecentlyReleasedMovies() AppHandler {
-	return func(w http.ResponseWriter, r *http.Request) ([]models.Movie, error) {
+	return func(w http.ResponseWriter, r *http.Request) (interface{}, error) {
 		pageInt := getPageFromRequest(r)
 		return h.Service.GetRecentMovies(pageInt)
+	}
+}
+
+func (h *MovieHandler) FetchGenres() AppHandler {
+	return func(w http.ResponseWriter, r *http.Request) (interface{}, error) {
+		return h.Service.GetMovieGenres()
 	}
 }
 

@@ -5,30 +5,58 @@ import "github.com/ryanbradynd05/go-tmdb"
 // Movie model
 type Movie = tmdb.MovieShort
 
-// Genre represents a fixed set of genres
-type Genre string
+type Genre struct {
+	ID   int    `json:"id"`
+	Name string `json:"name"`
+}
+
+// GenreType represents a fixed set of GenreTypes
+type GenreType string
 
 const (
-	Action      Genre = "Action"
-	Adventure   Genre = "Adventure"
-	Animation   Genre = "Animation"
-	Biography   Genre = "Biography"
-	Comedy      Genre = "Comedy"
-	Crime       Genre = "Crime"
-	Documentary Genre = "Documentary"
-	Drama       Genre = "Drama"
-	Family      Genre = "Family"
-	Fantasy     Genre = "Fantasy"
-	History     Genre = "History"
-	Horror      Genre = "Horror"
-	Music       Genre = "Music"
-	Musical     Genre = "Musical"
-	Mystery     Genre = "Mystery"
-	Romance     Genre = "Romance"
-	SciFi       Genre = "Sci-Fi"
-	Sport       Genre = "Sport"
-	Thriller    Genre = "Thriller"
-	War         Genre = "War"
-	Western     Genre = "Western"
-	Unknown     Genre = "Unknown"
+	Action      GenreType = "Action"
+	Adventure   GenreType = "Adventure"
+	Animation   GenreType = "Animation"
+	Biography   GenreType = "Biography"
+	Comedy      GenreType = "Comedy"
+	Crime       GenreType = "Crime"
+	Documentary GenreType = "Documentary"
+	Drama       GenreType = "Drama"
+	Family      GenreType = "Family"
+	Fantasy     GenreType = "Fantasy"
+	History     GenreType = "History"
+	Horror      GenreType = "Horror"
+	Music       GenreType = "Music"
+	Musical     GenreType = "Musical"
+	Mystery     GenreType = "Mystery"
+	Romance     GenreType = "Romance"
+	SciFi       GenreType = "Sci-Fi"
+	Sport       GenreType = "Sport"
+	Thriller    GenreType = "Thriller"
+	War         GenreType = "War"
+	Western     GenreType = "Western"
+	Unknown     GenreType = "Unknown"
 )
+
+// Returned from tmdb
+// [
+//     "Action",
+//     "Adventure",
+//     "Animation",
+//     "Comedy",
+//     "Crime",
+//     "Documentary",
+//     "Drama",
+//     "Family",
+//     "Fantasy",
+//     "History",
+//     "Horror",
+//     "Music",
+//     "Mystery",
+//     "Romance",
+//     "Science Fiction",
+//     "TV Movie",
+//     "Thriller",
+//     "War",
+//     "Western"
+// ]
