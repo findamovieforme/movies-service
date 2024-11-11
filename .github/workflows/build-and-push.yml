@@ -3,40 +3,49 @@ name: Build and Push Docker Image to ECR
 on:
   push:
     branches:
-      - main  # Run this action on pushes to the main branch; adjust as needed
+      - main  # Trigger the workflow on pushes to the main branch
 
 jobs:
   build-and-push:
     runs-on: ubuntu-latest
 
     steps:
+      # Step 1: Checkout the repository code
       - name: Checkout Code
         uses: actions/checkout@v3
 
-      - name: Assume Role and Configure AWS Credentials
-        id: assume-role
+      # Step 2: Configure AWS Credentials by assuming a role
+      - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v2
         with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-2  # Replace with your AWS region
           role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
-          aws-region: us-east-2  # Adjust the region if needed
-          role-duration-seconds: 3600  # Optional: duration of the assumed role session
-          access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          role-session-name: GitHubActionsSession  # Optional: Name your session
 
+      # Step 3: Set up Docker Buildx for multi-platform builds
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v2
 
+      # Step 4: Log in to Amazon ECR
+      - name: Log in to Amazon ECR
+        run: |
+          aws ecr get-login-password --region us-east-2 | docker login --username AWS --password-stdin 686255989801.dkr.ecr.us-east-2.amazonaws.com
+
+      # Step 5: Build and Push Docker Image
       - name: Build and Push Docker Image
         env:
           ECR_REGISTRY: 686255989801.dkr.ecr.us-east-2.amazonaws.com  # Replace with your ECR registry
-          ECR_REPOSITORY: movierecuh/movies-service
-          IMAGE_TAG: latest
+          ECR_REPOSITORY: movierecuh/movies-service  # Replace with your ECR repository
+          IMAGE_TAG: latest  # You can use a different tag if needed
         run: |
           docker buildx build \
             --platform linux/amd64,linux/arm64 \
             -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG \
             --push .
 
+      # Step 6: Logout from Amazon ECR (Optional Cleanup)
       - name: Logout from Amazon ECR
         run: |
           docker logout $ECR_REGISTRY
