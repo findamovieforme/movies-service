@@ -14,7 +14,6 @@ func InitRouter() *gin.Engine {
 
 	defaultHandler := handlers.NewDefaultHandler()
 	movieHandler := handlers.NewMovieHandler(movieService)
-
 	// Add a base /movies to all routes
 	moviesGroup := router.Group("/movies")
 
@@ -24,6 +23,9 @@ func InitRouter() *gin.Engine {
 	moviesGroup.GET("/trending", gin.WrapF(movieHandler.FetchTrendingMovies().ServeHTTP))
 	moviesGroup.GET("/recent", gin.WrapF(movieHandler.FetchRecentlyReleasedMovies().ServeHTTP))
 	moviesGroup.GET("/genres", gin.WrapF(movieHandler.FetchGenres().ServeHTTP))
+	moviesGroup.GET("/details", gin.WrapF(movieHandler.FetchMovieDetails().ServeHTTP))
+
+	moviesGroup.POST("/recommendations", gin.WrapF(movieHandler.FetchRecommendations().ServeHTTP))
 
 	return router
 }

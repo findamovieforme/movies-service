@@ -1,10 +1,16 @@
 package services
 
 import (
+	"context"
+	"encoding/json"
+	"fmt"
 	"log"
 	"strconv"
 	"time"
 
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/service/sagemakerruntime"
 	"github.com/movierecuh/movies-service/helpers"
 	"github.com/movierecuh/movies-service/models"
 	"github.com/ryanbradynd05/go-tmdb"
@@ -15,6 +21,20 @@ type MovieServiceInterface interface {
 	GetTrendingMovies(page int) ([]models.Movie, error)
 	GetRecentMovies(page int) ([]models.Movie, error)
 	GetMovieGenres() ([]models.Genre, error)
+	GetRecommendations(movieName string) ([]models.Movie, error)
+	GetMovieDetails(movieID int) (models.Movie, error)
+	GetMovieDetailsByTitle(movieTitle string) (models.Movie, error)
+}
+
+func convertGenresToIDs(genres []struct {
+	ID   int
+	Name string
+}) []int32 {
+	var ids []int32
+	for _, genre := range genres {
+		ids = append(ids, int32(genre.ID))
+	}
+	return ids
 }
 
 type MovieService struct {
@@ -90,33 +110,98 @@ func (s *MovieService) GetMovieGenres() ([]models.Genre, error) {
 	return genreList, nil
 }
 
-// Function to fetch movie data for a list of IMDb IDs
-func (s *MovieService) GetMoviesByIMDbIDs(imdbIDs []string) ([]models.Movie, error) {
-	var movies []models.Movie
-	// for _, imdbID := range imdbIDs {
-	// 	url := fmt.Sprintf("https://api.themoviedb.org/3/find/%s?api_key=%s&external_source=imdb_id", imdbID, s.apiKey)
+func (s *MovieService) GetRecommendations(movieName string) ([]models.Movie, error) {
 
-	// 	// Call the API for each IMDb ID
-	// 	s.API.GetMovieGenres()
+	// Load the AWS configuration
+	cfg, err := config.LoadDefaultConfig(context.TODO(), config.WithRegion("us-east-2"))
+	if err != nil {
+		log.Fatalf("Unable to load SDK config, %v", err)
+	}
 
-	// 	resp, err := http.Get(url)
-	// 	if err != nil {
-	// 		return nil, err
-	// 	}
-	// 	defer resp.Body.Close()
+	// Create a SageMaker Runtime client
+	svc := sagemakerruntime.NewFromConfig(cfg)
 
-	// 	// Decode the API response
-	// 	var result struct {
-	// 		MovieResults []models.Movie `json:"movie_results"`
-	// 	}
-	// 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-	// 		return nil, err
-	// 	}
+	// Specify the endpoint name and input payload
+	endpointName := "movie-endpoint"
+	inputPayload := fmt.Sprintf("{\"title\": \"%s\"}", movieName)
 
-	// 	// Append each result
-	// 	if len(result.MovieResults) > 0 {
-	// 		movies = append(movies, result.MovieResults[0])
-	// 	}
-	// }
-	return movies, nil
+	// Call the SageMaker endpoint
+	output, err := svc.InvokeEndpoint(context.TODO(), &sagemakerruntime.InvokeEndpointInput{
+		EndpointName: aws.String(endpointName),
+		ContentType:  aws.String("application/json"),
+		Body:         []byte(inputPayload),
+	})
+	if err != nil {
+		log.Printf("Error calling SageMaker endpoint: %v", err)
+		return nil, err
+	}
+
+	// Parse the JSON response
+	responseBody := output.Body
+	var recommendationsResponse models.RecommendationsResponse
+	var errorResponse models.ErrorResponse
+
+	// First try to unmarshal into the recommendations response
+	if err := json.Unmarshal(responseBody, &recommendationsResponse); err == nil && len(recommendationsResponse.Recommendations) > 0 {
+		// Successfully parsed recommendations
+		var movieRecommendations []models.Movie
+		for _, title := range recommendationsResponse.Recommendations {
+			movie, err := s.GetMovieDetailsByTitle(title)
+			if err != nil {
+				log.Printf("Error when getting movie details: %v", err)
+				continue
+			}
+			movieRecommendations = append(movieRecommendations, movie)
+		}
+		return movieRecommendations, nil
+	}
+
+	// If no recommendations, try to unmarshal into the error response
+	if err := json.Unmarshal(responseBody, &errorResponse); err == nil && errorResponse.Error != "" {
+		log.Printf("Error when calling sagemaker: %v", err)
+		return []models.Movie{}, nil
+	}
+
+	// If neither works, return a generic error
+	log.Printf("Unexpected response when calling SageMaker endpoint: %v", err)
+	return nil, fmt.Errorf("unexpected response from SageMaker: %s", string(responseBody))
+}
+
+func (s *MovieService) GetMovieDetails(movieID int) (models.Movie, error) {
+	movie, err := s.API.GetMovieInfo(movieID, nil)
+	fmt.Println(movie)
+	if err != nil {
+		return models.Movie{}, err
+	}
+
+	// Update the image URLs
+	movie.BackdropPath = tmdbImageBaseURL + movie.BackdropPath
+	movie.PosterPath = tmdbImageBaseURL + movie.PosterPath
+
+	movieTrimmed := models.Movie{
+		GenreIDs:      convertGenresToIDs(movie.Genres),
+		Overview:      movie.Overview,
+		ReleaseDate:   movie.ReleaseDate,
+		BackdropPath:  movie.BackdropPath,
+		PosterPath:    movie.PosterPath,
+		Adult:         movie.Adult,
+		ID:            movie.ID,
+		OriginalTitle: movie.OriginalTitle,
+		Popularity:    movie.Popularity,
+		Video:         movie.Video,
+		VoteCount:     movie.VoteCount,
+		VoteAverage:   movie.VoteAverage,
+		Title:         movie.Title,
+	}
+
+	return movieTrimmed, nil
+}
+
+func (s *MovieService) GetMovieDetailsByTitle(movieTitle string) (models.Movie, error) {
+	movies, err := s.API.SearchMovie(movieTitle, nil)
+	if err != nil {
+		return models.Movie{}, err
+	}
+	movie := movies.Results[0]
+	return movie, nil
 }

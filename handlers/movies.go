@@ -3,6 +3,7 @@
 package handlers
 
 import (
+	"encoding/json"
 	"net/http"
 	"strconv"
 
@@ -34,6 +35,35 @@ func (h *MovieHandler) FetchRecentlyReleasedMovies() AppHandler {
 func (h *MovieHandler) FetchGenres() AppHandler {
 	return func(w http.ResponseWriter, r *http.Request) (interface{}, error) {
 		return h.Service.GetMovieGenres()
+	}
+}
+
+func (h *MovieHandler) FetchRecommendations() AppHandler {
+	return func(w http.ResponseWriter, r *http.Request) (interface{}, error) {
+		var req struct {
+			Title string `json:"title"`
+		}
+
+		// Decode the JSON request body into the struct
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			return nil, err
+		}
+
+		// Use the extracted movie name to get recommendations
+		return h.Service.GetRecommendations(req.Title)
+	}
+}
+
+func (h *MovieHandler) FetchMovieDetails() AppHandler {
+	return func(w http.ResponseWriter, r *http.Request) (interface{}, error) {
+
+		// Extract movie name from query parameters as integer
+		movieID, err := strconv.Atoi(r.URL.Query().Get("movieID"))
+		if err != nil {
+			return nil, err
+		}
+		// Use the extracted movie name to get recommendations
+		return h.Service.GetMovieDetails(movieID)
 	}
 }
 
