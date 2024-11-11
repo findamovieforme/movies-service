@@ -1,0 +1,42 @@
+name: Build and Push Docker Image to ECR
+
+on:
+  push:
+    branches:
+      - main  # Run this action on pushes to the main branch; adjust as needed
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v3
+
+      - name: Assume Role and Configure AWS Credentials
+        id: assume-role
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
+          aws-region: us-east-2  # Adjust the region if needed
+          role-duration-seconds: 3600  # Optional: duration of the assumed role session
+          access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+
+      - name: Build and Push Docker Image
+        env:
+          ECR_REGISTRY: 686255989801.dkr.ecr.us-east-2.amazonaws.com  # Replace with your ECR registry
+          ECR_REPOSITORY: movierecuh/movies-service
+          IMAGE_TAG: latest
+        run: |
+          docker buildx build \
+            --platform linux/amd64,linux/arm64 \
+            -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG \
+            --push .
+
+      - name: Logout from Amazon ECR
+        run: |
+          docker logout $ECR_REGISTRY
