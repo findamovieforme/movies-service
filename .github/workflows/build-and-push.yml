@@ -23,6 +23,7 @@ jobs:
           aws-region: us-east-2  # Replace with your AWS region
           role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
           role-session-name: GitHubActionsSession  # Optional: Name your session
+          role-duration-seconds: 1200
 
       # Step 3: Set up Docker Buildx for multi-platform builds
       - name: Set up Docker Buildx
