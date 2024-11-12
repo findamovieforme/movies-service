@@ -67,6 +67,33 @@ func (h *MovieHandler) FetchMovieDetails() AppHandler {
 	}
 }
 
+func (h *MovieHandler) FetchRecommendationsGrouped() AppHandler {
+	return func(w http.ResponseWriter, r *http.Request) (interface{}, error) {
+		var req struct {
+			Titles []string `json:"titles"`
+		}
+
+		// Decode the JSON request body into the struct
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			return nil, err
+		}
+		return h.Service.GetRecommendationsGrouped(req.Titles)
+	}
+}
+
+func (h *MovieHandler) SearchMovies() AppHandler {
+	return func(w http.ResponseWriter, r *http.Request) (interface{}, error) {
+
+		// Extract movie name from query parameters as integer
+		movieName := r.URL.Query().Get("movieName")
+		if movieName == "" {
+			return nil, nil
+		}
+		// Use the extracted movie name to get recommendations
+		return h.Service.SearchMovie(movieName)
+	}
+}
+
 // Helper function to parse page number from request
 func getPageFromRequest(r *http.Request) int {
 	page := r.URL.Query().Get("page")

@@ -24,8 +24,10 @@ func InitRouter() *gin.Engine {
 	moviesGroup.GET("/recent", gin.WrapF(movieHandler.FetchRecentlyReleasedMovies().ServeHTTP))
 	moviesGroup.GET("/genres", gin.WrapF(movieHandler.FetchGenres().ServeHTTP))
 	moviesGroup.GET("/details", gin.WrapF(movieHandler.FetchMovieDetails().ServeHTTP))
+	moviesGroup.GET("/search", gin.WrapF(movieHandler.SearchMovies().ServeHTTP))
 
 	moviesGroup.POST("/recommendations", gin.WrapF(movieHandler.FetchRecommendations().ServeHTTP))
+	moviesGroup.POST("/recommendationsGrouped", gin.WrapF(movieHandler.FetchRecommendationsGrouped().ServeHTTP))
 
 	return router
 }

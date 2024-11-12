@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"math/rand/v2"
 	"strconv"
 	"time"
 
@@ -22,8 +23,11 @@ type MovieServiceInterface interface {
 	GetRecentMovies(page int) ([]models.Movie, error)
 	GetMovieGenres() ([]models.Genre, error)
 	GetRecommendations(movieName string) ([]models.Movie, error)
+	GetRecommendationsGrouped(movieNames []string) ([]models.Movie, error)
+
 	GetMovieDetails(movieID int) (models.Movie, error)
 	GetMovieDetailsByTitle(movieTitle string) (models.Movie, error)
+	SearchMovie(movieTitle string) ([]models.Movie, error)
 }
 
 func convertGenresToIDs(genres []struct {
@@ -167,6 +171,24 @@ func (s *MovieService) GetRecommendations(movieName string) ([]models.Movie, err
 	return nil, fmt.Errorf("unexpected response from SageMaker: %s", string(responseBody))
 }
 
+func (s *MovieService) GetRecommendationsGrouped(movieNames []string) ([]models.Movie, error) {
+	var movies []models.Movie
+	for _, movieName := range movieNames {
+		res, err := s.GetRecommendations(movieName)
+		if err != nil {
+			fmt.Println("Error getting recommendation for movie ", movieName, err)
+			continue
+		}
+		movies = append(movies, res...)
+	}
+	// Shuffle the movies array
+	for i := range movies {
+		j := rand.IntN(i + 1)
+		movies[i], movies[j] = movies[j], movies[i]
+	}
+	return movies, nil
+}
+
 func (s *MovieService) GetMovieDetails(movieID int) (models.Movie, error) {
 	movie, err := s.API.GetMovieInfo(movieID, nil)
 	fmt.Println(movie)
@@ -204,4 +226,18 @@ func (s *MovieService) GetMovieDetailsByTitle(movieTitle string) (models.Movie, 
 	}
 	movie := movies.Results[0]
 	return movie, nil
+}
+
+func (s *MovieService) SearchMovie(movieTitle string) ([]models.Movie, error) {
+	movies, err := s.API.SearchMovie(movieTitle, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	// Update the image URLs
+	for i := range movies.Results {
+		movies.Results[i].BackdropPath = tmdbImageBaseURL + movies.Results[i].BackdropPath
+		movies.Results[i].PosterPath = tmdbImageBaseURL + movies.Results[i].PosterPath
+	}
+	return movies.Results, nil
 }
