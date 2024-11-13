@@ -15,11 +15,12 @@ import (
 	"github.com/movierecuh/movies-service/helpers"
 	"github.com/movierecuh/movies-service/models"
 	"github.com/ryanbradynd05/go-tmdb"
+	"github.com/valkey-io/valkey-go"
 )
 
 type MovieServiceInterface interface {
 	GetMovies(params map[string]string) ([]models.Movie, error)
-	GetTrendingMovies(page int) ([]models.Movie, error)
+	GetTrendingMovies(page int, genreID int) ([]models.Movie, error)
 	GetRecentMovies(page int) ([]models.Movie, error)
 	GetMovieGenres() ([]models.Genre, error)
 	GetRecommendations(movieName string) ([]models.Movie, error)
@@ -78,10 +79,13 @@ func (s *MovieService) GetMovies(params map[string]string) ([]models.Movie, erro
 	return apiRes.Results, nil
 }
 
-func (s *MovieService) GetTrendingMovies(page int) ([]models.Movie, error) {
+func (s *MovieService) GetTrendingMovies(page int, genreID int) ([]models.Movie, error) {
 	params := make(map[string]string)
 	params["page"] = strconv.Itoa(page)
 	params["sort_by"] = "popularity.desc"
+	if genreID != 0 {
+		params["with_genres"] = strconv.Itoa(genreID)
+	}
 	return s.GetMovies(params)
 }
 
@@ -101,21 +105,38 @@ func (s *MovieService) GetMovieGenres() ([]models.Genre, error) {
 	if err != nil {
 		log.Fatal(err)
 	}
+	genreList := getGenresWithTrendingMovies(s, genres)
 
-	genreList := make([]models.Genre, 0)
-	// Convert the genres to our model
-	for _, genre := range genres.Genres {
-		genre := models.Genre{
-			ID:   genre.ID,
-			Name: genre.Name,
-		}
-		genreList = append(genreList, genre)
-	}
 	return genreList, nil
 }
 
 func (s *MovieService) GetRecommendations(movieName string) ([]models.Movie, error) {
 
+	valkeyAddr := "valkeycluster-0001-001.valkeycluster.9eytty.use2.cache.amazonaws.com:6379" // Replace with your actual Valkey endpoint
+	valkeyClient, err := valkey.NewClient(valkey.ClientOption{
+		InitAddress: []string{valkeyAddr},
+	})
+	if err != nil {
+		log.Fatal(err)
+	}
+	ctx := context.Background()
+	cacheKey := fmt.Sprintf("recommendations:%s", movieName)
+
+	// Attempt to retrieve cached recommendations
+	resp := valkeyClient.Do(ctx, valkeyClient.B().Get().Key(cacheKey).Build())
+	if err := resp.Error(); err == nil {
+		cachedData, _ := resp.ToString()
+		if cachedData != "" {
+			var movieRecommendations []models.Movie
+			if err := json.Unmarshal([]byte(cachedData), &movieRecommendations); err == nil {
+				log.Printf("Cache hit for movie: %s", movieName)
+				return movieRecommendations, nil
+			}
+			log.Printf("Error unmarshalling cached data: %v", err)
+		}
+	} else if !valkey.IsValkeyNil(err) {
+		log.Printf("Error retrieving from cache: %v", err)
+	}
 	// Load the AWS configuration
 	cfg, err := config.LoadDefaultConfig(context.TODO(), config.WithRegion("us-east-2"))
 	if err != nil {
@@ -157,6 +178,17 @@ func (s *MovieService) GetRecommendations(movieName string) ([]models.Movie, err
 			}
 			movieRecommendations = append(movieRecommendations, movie)
 		}
+
+		recommendationsData, err := json.Marshal(movieRecommendations)
+		if err == nil {
+			setResp := valkeyClient.Do(ctx, valkeyClient.B().Set().Key(cacheKey).Value(string(recommendationsData)).ExSeconds(3600).Build())
+			if setResp.Error() != nil {
+				log.Printf("Error caching recommendations: %v", setResp.Error())
+			}
+		} else {
+			log.Printf("Error marshalling recommendations: %v", err)
+		}
+
 		return movieRecommendations, nil
 	}
 
@@ -240,4 +272,41 @@ func (s *MovieService) SearchMovie(movieTitle string) ([]models.Movie, error) {
 		movies.Results[i].PosterPath = tmdbImageBaseURL + movies.Results[i].PosterPath
 	}
 	return movies.Results, nil
+}
+
+func getGenresWithTrendingMovies(s *MovieService, genres *tmdb.Genre) []models.Genre {
+	var genreList []models.Genre
+	// var mu sync.Mutex     // to ensure safe access to genreList
+	// var wg sync.WaitGroup // to wait for all goroutines to complete
+
+	for _, genre := range genres.Genres {
+		// wg.Add(1)
+		fmt.Println(genre.Name)
+		// go func(genre struct {
+		// 	ID   int
+		// 	Name string
+		// }) {
+		// 	defer wg.Done()
+		movie, err := s.GetTrendingMovies(1, genre.ID)
+
+		// Prepare the genre struct without PosterPath in case of an error
+		genreModel := models.Genre{
+			ID:   genre.ID,
+			Name: genre.Name,
+		}
+
+		// Only set PosterPath if there's no error and movies are available
+		if err == nil && len(movie) > 0 {
+			genreModel.PosterPath = movie[0].PosterPath
+		}
+		// Append the genre model to the list safely
+		// mu.Lock()
+		genreList = append(genreList, genreModel)
+		// mu.Unlock()
+		// }(genre)
+	}
+
+	// Wait for all goroutines to complete
+	// wg.Wait()
+	return genreList
 }

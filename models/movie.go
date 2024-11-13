@@ -6,8 +6,9 @@ import "github.com/ryanbradynd05/go-tmdb"
 type Movie = tmdb.MovieShort
 
 type Genre struct {
-	ID   int    `json:"id"`
-	Name string `json:"name"`
+	ID         int    `json:"id"`
+	Name       string `json:"name"`
+	PosterPath string `json:"posterPath"`
 }
 
 // GenreType represents a fixed set of GenreTypes

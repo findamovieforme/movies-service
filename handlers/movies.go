@@ -21,7 +21,8 @@ func NewMovieHandler(service services.MovieServiceInterface) *MovieHandler {
 func (h *MovieHandler) FetchTrendingMovies() AppHandler {
 	return func(w http.ResponseWriter, r *http.Request) (interface{}, error) {
 		pageInt := getPageFromRequest(r)
-		return h.Service.GetTrendingMovies(pageInt)
+		genreID := getIntFromRequest(r, "genreID")
+		return h.Service.GetTrendingMovies(pageInt, genreID)
 	}
 }
 
@@ -104,4 +105,15 @@ func getPageFromRequest(r *http.Request) int {
 		}
 	}
 	return pageInt
+}
+
+func getIntFromRequest(r *http.Request, paramName string) int {
+	param := r.URL.Query().Get(paramName)
+	paramInt := 0
+	if param != "" {
+		if parsedParam, err := strconv.Atoi(param); err == nil {
+			paramInt = parsedParam
+		}
+	}
+	return paramInt
 }

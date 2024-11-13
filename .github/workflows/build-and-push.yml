@@ -46,7 +46,18 @@ jobs:
             -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG \
             --push .
 
-      # Step 6: Logout from Amazon ECR (Optional Cleanup)
+      
+      # Step 6: Deploy to ECS
+      - name: Deploy to ECS
+        run: |
+          aws ecs update-service \
+            --cluster findamovie-cluster \
+            --service findamovie-movies-service \
+            --force-new-deployment
+        env:
+          AWS_REGION: us-east-2  # Replace with your AWS region
+
+      # Step 7: Logout from Amazon ECR (Optional Cleanup)
       - name: Logout from Amazon ECR
         run: |
           docker logout $ECR_REGISTRY
