@@ -1,6 +1,7 @@
 package routers
 
 import (
+	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 	"github.com/movierecuh/movies-service/handlers"
 	"github.com/movierecuh/movies-service/services"
@@ -8,6 +9,7 @@ import (
 
 func InitRouter() *gin.Engine {
 	router := gin.Default()
+	router.Use(cors.Default())
 
 	// Initialize services and handlers
 	movieService := services.GetMovieService()
