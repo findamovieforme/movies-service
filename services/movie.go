@@ -297,7 +297,9 @@ func getGenresWithTrendingMovies(s *MovieService, genres *tmdb.Genre) []models.G
 
 		// Only set PosterPath if there's no error and movies are available
 		if err == nil && len(movie) > 0 {
-			genreModel.PosterPath = movie[0].PosterPath
+			// Get random index
+			randIndex := rand.IntN(len(movie))
+			genreModel.PosterPath = movie[randIndex].PosterPath
 		}
 		// Append the genre model to the list safely
 		// mu.Lock()
