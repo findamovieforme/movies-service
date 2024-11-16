@@ -166,6 +166,20 @@ func (h *MovieHandler) FetchMovieDetails() AppHandler {
 	}
 }
 
+func (h *MovieHandler) FetchGptResponse() AppHandler {
+	return func(w http.ResponseWriter, r *http.Request) (interface{}, error) {
+		var req struct {
+			Prompt string `json:"prompt"`
+		}
+
+		// Decode the JSON request body into the struct
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			return nil, err
+		}
+		return h.Service.GetGptResponse(req.Prompt)
+	}
+}
+
 func (h *MovieHandler) FetchRecommendationsGrouped() AppHandler {
 	return func(w http.ResponseWriter, r *http.Request) (interface{}, error) {
 		var req struct {

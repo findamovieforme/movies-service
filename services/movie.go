@@ -14,6 +14,8 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/sagemakerruntime"
 	"github.com/movierecuh/movies-service/helpers"
 	"github.com/movierecuh/movies-service/models"
+	"github.com/openai/openai-go" // imported as openai
+	"github.com/openai/openai-go/option"
 	"github.com/ryanbradynd05/go-tmdb"
 )
 
@@ -28,6 +30,8 @@ type MovieServiceInterface interface {
 	GetMovieDetails(movieID int) (models.Movie, error)
 	GetMovieDetailsByTitle(movieTitle string) (models.Movie, error)
 	SearchMovie(movieTitle string) ([]models.Movie, error)
+
+	GetGptResponse(prompt string) ([]models.Movie, error)
 }
 
 func convertGenresToIDs(genres []struct {
@@ -47,11 +51,18 @@ type MovieService struct {
 
 const tmdbImageBaseURL = "https://image.tmdb.org/t/p/w500"
 
+var openaiAPIKey string
+
 func GetMovieService() *MovieService {
 	apiKey, err := helpers.LoadEnv("TMDB_API_KEY")
 	if err != nil {
 		log.Fatal(err)
 	}
+	openai, err := helpers.LoadEnv("OPENAI_API_KEY")
+	if err != nil {
+		log.Fatal(err)
+	}
+	openaiAPIKey = openai
 
 	config := tmdb.Config{
 		APIKey:   apiKey,
@@ -313,4 +324,57 @@ func getGenresWithTrendingMovies(s *MovieService, genres *tmdb.Genre) []models.G
 	// Wait for all goroutines to complete
 	// wg.Wait()
 	return genreList
+}
+
+func (s *MovieService) GetGptResponse(userPrompt string) ([]models.Movie, error) {
+	client := openai.NewClient(
+		option.WithAPIKey(openaiAPIKey),
+	)
+
+	// Pre-built instruction to GPT
+	preBuiltPrompt := fmt.Sprintf(`You are a movie recommendation assistant. The user will describe what they liked about a movie, focusing on themes, vibes, or specific aspects. Suggest up to 5 movies that match these described themes or elements. The user can also describe a story, you will have to find the movie and similar movies after that. Respond only with a JSON array of movie titles in this format:
+[
+  "Movie Title 1",
+  "Movie Title 2",
+  "Movie Title 3"
+]
+
+User's prompt: %s`, userPrompt)
+
+	// Call GPT API with the pre-built instruction
+	chatCompletion, err := client.Chat.Completions.New(context.TODO(), openai.ChatCompletionNewParams{
+		Messages: openai.F([]openai.ChatCompletionMessageParamUnion{
+			openai.UserMessage(preBuiltPrompt),
+		}),
+		Model:     openai.F(openai.ChatModelGPT4oMini), // GPT-4 or 3.5
+		MaxTokens: openai.Int(200),                     // Allow space for a JSON array
+	})
+	fmt.Println(chatCompletion.Choices[0].Message.Content)
+	if err != nil {
+		return nil, err
+	}
+
+	// Parse GPT response (JSON array of movie titles)
+	var movieTitles []string
+	err = json.Unmarshal([]byte(chatCompletion.Choices[0].Message.Content), &movieTitles)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse GPT response: %v", err)
+	}
+
+	// Query TMDB for movie details
+	var movies []tmdb.MovieShort
+	for _, title := range movieTitles {
+		tmdbResults, err := s.GetMovieDetailsByTitle(title)
+		if err != nil {
+			fmt.Println("Error getting movie details for ", title, err)
+			continue // Skip movies that fail
+		}
+
+		// Update the image URLs
+		tmdbResults.BackdropPath = tmdbImageBaseURL + tmdbResults.BackdropPath
+		tmdbResults.PosterPath = tmdbImageBaseURL + tmdbResults.PosterPath
+		movies = append(movies, tmdbResults)
+	}
+
+	return movies, nil
 }

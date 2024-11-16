@@ -30,6 +30,6 @@ func InitRouter() *gin.Engine {
 
 	moviesGroup.POST("/recommendations", gin.WrapF(movieHandler.FetchRecommendations().ServeHTTP))
 	moviesGroup.POST("/recommendationsGrouped", gin.WrapF(movieHandler.FetchRecommendationsGrouped().ServeHTTP))
-
+	moviesGroup.POST("/gpt", gin.WrapF(movieHandler.FetchGptResponse().ServeHTTP))
 	return router
 }
