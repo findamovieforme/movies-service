@@ -15,7 +15,6 @@ import (
 	"github.com/movierecuh/movies-service/helpers"
 	"github.com/movierecuh/movies-service/models"
 	"github.com/ryanbradynd05/go-tmdb"
-	"github.com/valkey-io/valkey-go"
 )
 
 type MovieServiceInterface interface {
@@ -112,31 +111,31 @@ func (s *MovieService) GetMovieGenres() ([]models.Genre, error) {
 
 func (s *MovieService) GetRecommendations(movieName string) ([]models.Movie, error) {
 
-	valkeyAddr := "valkeycluster-0001-001.valkeycluster.9eytty.use2.cache.amazonaws.com:6379" // Replace with your actual Valkey endpoint
-	valkeyClient, err := valkey.NewClient(valkey.ClientOption{
-		InitAddress: []string{valkeyAddr},
-	})
-	if err != nil {
-		log.Fatal(err)
-	}
-	ctx := context.Background()
-	cacheKey := fmt.Sprintf("recommendations:%s", movieName)
+	// valkeyAddr := "valkeycluster-0001-001.valkeycluster.9eytty.use2.cache.amazonaws.com:6379" // Replace with your actual Valkey endpoint
+	// valkeyClient, err := valkey.NewClient(valkey.ClientOption{
+	// 	InitAddress: []string{valkeyAddr},
+	// })
+	// if err != nil {
+	// 	log.Fatal(err)
+	// }
+	// ctx := context.Background()
+	// cacheKey := fmt.Sprintf("recommendations:%s", movieName)
 
-	// Attempt to retrieve cached recommendations
-	resp := valkeyClient.Do(ctx, valkeyClient.B().Get().Key(cacheKey).Build())
-	if err := resp.Error(); err == nil {
-		cachedData, _ := resp.ToString()
-		if cachedData != "" {
-			var movieRecommendations []models.Movie
-			if err := json.Unmarshal([]byte(cachedData), &movieRecommendations); err == nil {
-				log.Printf("Cache hit for movie: %s", movieName)
-				return movieRecommendations, nil
-			}
-			log.Printf("Error unmarshalling cached data: %v", err)
-		}
-	} else if !valkey.IsValkeyNil(err) {
-		log.Printf("Error retrieving from cache: %v", err)
-	}
+	// // Attempt to retrieve cached recommendations
+	// resp := valkeyClient.Do(ctx, valkeyClient.B().Get().Key(cacheKey).Build())
+	// if err := resp.Error(); err == nil {
+	// 	cachedData, _ := resp.ToString()
+	// 	if cachedData != "" {
+	// 		var movieRecommendations []models.Movie
+	// 		if err := json.Unmarshal([]byte(cachedData), &movieRecommendations); err == nil {
+	// 			log.Printf("Cache hit for movie: %s", movieName)
+	// 			return movieRecommendations, nil
+	// 		}
+	// 		log.Printf("Error unmarshalling cached data: %v", err)
+	// 	}
+	// } else if !valkey.IsValkeyNil(err) {
+	// 	log.Printf("Error retrieving from cache: %v", err)
+	// }
 	// Load the AWS configuration
 	cfg, err := config.LoadDefaultConfig(context.TODO(), config.WithRegion("us-east-2"))
 	if err != nil {
@@ -176,18 +175,21 @@ func (s *MovieService) GetRecommendations(movieName string) ([]models.Movie, err
 				log.Printf("Error when getting movie details: %v", err)
 				continue
 			}
+			// Update the image URLs
+			movie.BackdropPath = tmdbImageBaseURL + movie.BackdropPath
+			movie.PosterPath = tmdbImageBaseURL + movie.PosterPath
 			movieRecommendations = append(movieRecommendations, movie)
 		}
 
-		recommendationsData, err := json.Marshal(movieRecommendations)
-		if err == nil {
-			setResp := valkeyClient.Do(ctx, valkeyClient.B().Set().Key(cacheKey).Value(string(recommendationsData)).ExSeconds(3600).Build())
-			if setResp.Error() != nil {
-				log.Printf("Error caching recommendations: %v", setResp.Error())
-			}
-		} else {
-			log.Printf("Error marshalling recommendations: %v", err)
-		}
+		// recommendationsData, err := json.Marshal(movieRecommendations)
+		// if err == nil {
+		// 	setResp := valkeyClient.Do(ctx, valkeyClient.B().Set().Key(cacheKey).Value(string(recommendationsData)).ExSeconds(3600).Build())
+		// 	if setResp.Error() != nil {
+		// 		log.Printf("Error caching recommendations: %v", setResp.Error())
+		// 	}
+		// } else {
+		// 	log.Printf("Error marshalling recommendations: %v", err)
+		// }
 
 		return movieRecommendations, nil
 	}
