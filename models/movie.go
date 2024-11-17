@@ -20,6 +20,7 @@ type ExtendedMovie struct {
 	VoteAverage   float32 `json:"vote_average"`
 	VoteCount     uint32  `json:"vote_count"`
 	TrailerKey    string  `json:"trailer_key"`
+	IMDBID        string  `json:"imdb_id"`
 }
 
 type Genre struct {

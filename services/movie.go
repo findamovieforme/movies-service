@@ -258,7 +258,6 @@ func (s *MovieService) GetMovieDetails(movieID int) (models.ExtendedMovie, error
 			}
 		}
 	}
-
 	movieTrimmed := models.ExtendedMovie{
 		TrailerKey:    trailerKey,
 		GenreIDs:      convertGenresToIDs(movie.Genres),
@@ -274,6 +273,7 @@ func (s *MovieService) GetMovieDetails(movieID int) (models.ExtendedMovie, error
 		VoteCount:     movie.VoteCount,
 		VoteAverage:   movie.VoteAverage,
 		Title:         movie.Title,
+		IMDBID:        movie.ImdbID,
 	}
 
 	return movieTrimmed, nil
