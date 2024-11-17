@@ -5,6 +5,23 @@ import "github.com/ryanbradynd05/go-tmdb"
 // Movie model
 type Movie = tmdb.MovieShort
 
+type ExtendedMovie struct {
+	Adult         bool    `json:"adult"`
+	BackdropPath  string  `json:"backdrop_path"`
+	ID            int     `json:"id"`
+	OriginalTitle string  `json:"original_title"`
+	GenreIDs      []int32 `json:"genre_ids"`
+	Popularity    float32 `json:"popularity"`
+	PosterPath    string  `json:"poster_path"`
+	ReleaseDate   string  `json:"release_date"`
+	Title         string  `json:"title"`
+	Overview      string  `json:"overview"`
+	Video         bool    `json:"video"`
+	VoteAverage   float32 `json:"vote_average"`
+	VoteCount     uint32  `json:"vote_count"`
+	TrailerKey    string  `json:"trailer_key"`
+}
+
 type Genre struct {
 	ID         int    `json:"id"`
 	Name       string `json:"name"`

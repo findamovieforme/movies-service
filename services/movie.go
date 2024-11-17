@@ -27,7 +27,7 @@ type MovieServiceInterface interface {
 	GetRecommendations(movieName string) ([]models.Movie, error)
 	GetRecommendationsGrouped(movieNames []string) ([]models.Movie, error)
 
-	GetMovieDetails(movieID int) (models.Movie, error)
+	GetMovieDetails(movieID int) (models.ExtendedMovie, error)
 	GetMovieDetailsByTitle(movieTitle string) (models.Movie, error)
 	SearchMovie(movieTitle string) ([]models.Movie, error)
 
@@ -156,7 +156,6 @@ func (s *MovieService) GetRecommendations(movieName string) ([]models.Movie, err
 	// Create a SageMaker Runtime client
 	svc := sagemakerruntime.NewFromConfig(cfg)
 
-	// Specify the endpoint name and input payload
 	endpointName := "movie-endpoint"
 	inputPayload := fmt.Sprintf("{\"title\": \"%s\"}", movieName)
 
@@ -234,18 +233,34 @@ func (s *MovieService) GetRecommendationsGrouped(movieNames []string) ([]models.
 	return movies, nil
 }
 
-func (s *MovieService) GetMovieDetails(movieID int) (models.Movie, error) {
+func (s *MovieService) GetMovieDetails(movieID int) (models.ExtendedMovie, error) {
 	movie, err := s.API.GetMovieInfo(movieID, nil)
 	fmt.Println(movie)
 	if err != nil {
-		return models.Movie{}, err
+		return models.ExtendedMovie{}, err
 	}
 
 	// Update the image URLs
 	movie.BackdropPath = tmdbImageBaseURL + movie.BackdropPath
 	movie.PosterPath = tmdbImageBaseURL + movie.PosterPath
 
-	movieTrimmed := models.Movie{
+	vids, err := s.API.GetMovieVideos(movieID, nil)
+	if err != nil {
+		fmt.Println("Error getting movie video: ", err)
+	}
+
+	// Get the trailer key
+	var trailerKey string
+	if vids != nil {
+		for _, vid := range vids.Results {
+			if vid.Type == "Trailer" && vid.Site == "YouTube" {
+				trailerKey = vid.Key
+			}
+		}
+	}
+
+	movieTrimmed := models.ExtendedMovie{
+		TrailerKey:    trailerKey,
 		GenreIDs:      convertGenresToIDs(movie.Genres),
 		Overview:      movie.Overview,
 		ReleaseDate:   movie.ReleaseDate,
