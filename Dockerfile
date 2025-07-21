@@ -1,33 +1,29 @@
-# Stage 1: Build the Go app
+# Stage 1: Build Go
 FROM golang:1.23-alpine AS builder
-
-# Install any build dependencies (optional)
 RUN apk add --no-cache git
-
-# Set the working directory inside the container
 WORKDIR /app
-
-# Copy go.mod and go.sum and download dependencies
 COPY go.mod go.sum ./
 RUN go mod download
-
-# Copy the source code
 COPY . .
-
-# Build the application
 RUN go build -o movies-service main.go
 
-# Stage 2: Create a minimal image with just the binary
-FROM alpine:latest
+# Stage 2: Runtime (Debian slim) - reliable sklearn wheels
+FROM python:3.12-slim
 
-# Install certificates to allow HTTPS connections (important for many Go apps)
-RUN apk --no-cache add ca-certificates
+# certificates for HTTPS calls
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates \
+  && rm -rf /var/lib/apt/lists/*
 
-# Copy the built binary from the builder stage
+WORKDIR /app
+
+# Python deps
+COPY helpers/requirements.txt /app/helpers/requirements.txt
+RUN pip install --no-cache-dir -r /app/helpers/requirements.txt
+
+# Copy Go binary + model files
 COPY --from=builder /app/movies-service /app/movies-service
+COPY helpers/predictor.py /app/helpers/predictor.py
+COPY recommendation-model /app/recommendation-model
 
-# Expose port 8080
 EXPOSE 8081
-
-# Run the app
 CMD ["/app/movies-service"]

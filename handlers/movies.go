@@ -4,6 +4,7 @@ package handlers
 
 import (
 	"encoding/json"
+	"log"
 	"net/http"
 	"strconv"
 
@@ -145,7 +146,14 @@ func (h *MovieHandler) FetchRecommendations() AppHandler {
 
 		// Decode the JSON request body into the struct
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			log.Printf("[FetchRecommendations] failed to decode request body: %v", err)
 			return nil, err
+		}
+
+		if req.Title == "" {
+			log.Printf("[FetchRecommendations] request has empty title")
+		} else {
+			log.Printf("[FetchRecommendations] request title=%q", req.Title)
 		}
 
 		// Use the extracted movie name to get recommendations

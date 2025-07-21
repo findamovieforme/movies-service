@@ -31,12 +31,12 @@ jobs:
       # Step 4: Log in to Amazon ECR
       - name: Log in to Amazon ECR
         run: |
-          aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin 124695120727.dkr.ecr.us-east-1.amazonaws.com
+          aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin 265507129430.dkr.ecr.us-east-1.amazonaws.com
 
       # Step 5: Build and Push Docker Image
       - name: Build and Push Docker Image
         env:
-          ECR_REGISTRY: 124695120727.dkr.ecr.us-east-1.amazonaws.com  
+          ECR_REGISTRY: 265507129430.dkr.ecr.us-east-1.amazonaws.com  
           ECR_REPOSITORY: movies-services
           IMAGE_TAG: latest  
         run: |

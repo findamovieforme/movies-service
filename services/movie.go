@@ -9,9 +9,6 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/aws/aws-sdk-go-v2/aws"
-	"github.com/aws/aws-sdk-go-v2/config"
-	"github.com/aws/aws-sdk-go-v2/service/sagemakerruntime"
 	"github.com/findamovieforme/movies-service/helpers"
 	"github.com/findamovieforme/movies-service/models"
 	"github.com/openai/openai-go" // imported as openai
@@ -121,98 +118,44 @@ func (s *MovieService) GetMovieGenres() ([]models.Genre, error) {
 }
 
 func (s *MovieService) GetRecommendations(movieName string) ([]models.Movie, error) {
-
-	// valkeyAddr := "valkeycluster-0001-001.valkeycluster.9eytty.use2.cache.amazonaws.com:6379" // Replace with your actual Valkey endpoint
-	// valkeyClient, err := valkey.NewClient(valkey.ClientOption{
-	// 	InitAddress: []string{valkeyAddr},
-	// })
-	// if err != nil {
-	// 	log.Fatal(err)
-	// }
-	// ctx := context.Background()
-	// cacheKey := fmt.Sprintf("recommendations:%s", movieName)
-
-	// // Attempt to retrieve cached recommendations
-	// resp := valkeyClient.Do(ctx, valkeyClient.B().Get().Key(cacheKey).Build())
-	// if err := resp.Error(); err == nil {
-	// 	cachedData, _ := resp.ToString()
-	// 	if cachedData != "" {
-	// 		var movieRecommendations []models.Movie
-	// 		if err := json.Unmarshal([]byte(cachedData), &movieRecommendations); err == nil {
-	// 			log.Printf("Cache hit for movie: %s", movieName)
-	// 			return movieRecommendations, nil
-	// 		}
-	// 		log.Printf("Error unmarshalling cached data: %v", err)
-	// 	}
-	// } else if !valkey.IsValkeyNil(err) {
-	// 	log.Printf("Error retrieving from cache: %v", err)
-	// }
-	// Load the AWS configuration
-	cfg, err := config.LoadDefaultConfig(context.TODO(), config.WithRegion("us-east-2"))
+	log.Printf("[GetRecommendations] start movieName=%q", movieName)
+	helpers.InitEnv()
+	responseBody, err := helpers.CallLocalModel(movieName)
 	if err != nil {
-		log.Fatalf("Unable to load SDK config, %v", err)
-	}
-
-	// Create a SageMaker Runtime client
-	svc := sagemakerruntime.NewFromConfig(cfg)
-
-	endpointName := "movie-endpoint"
-	inputPayload := fmt.Sprintf("{\"title\": \"%s\"}", movieName)
-
-	// Call the SageMaker endpoint
-	output, err := svc.InvokeEndpoint(context.TODO(), &sagemakerruntime.InvokeEndpointInput{
-		EndpointName: aws.String(endpointName),
-		ContentType:  aws.String("application/json"),
-		Body:         []byte(inputPayload),
-	})
-	if err != nil {
-		log.Printf("Error calling SageMaker endpoint: %v", err)
+		log.Printf("[GetRecommendations] CallLocalModel failed for %q: %v", movieName, err)
 		return nil, err
 	}
 
-	// Parse the JSON response
-	responseBody := output.Body
-	var recommendationsResponse models.RecommendationsResponse
-	var errorResponse models.ErrorResponse
+	log.Printf("[GetRecommendations] got %d recommendation titles, resolving via TMDB", len(responseBody.Recommendations))
 
-	// First try to unmarshal into the recommendations response
-	if err := json.Unmarshal(responseBody, &recommendationsResponse); err == nil && len(recommendationsResponse.Recommendations) > 0 {
-		// Successfully parsed recommendations
-		var movieRecommendations []models.Movie
-		for _, title := range recommendationsResponse.Recommendations {
-			movie, err := s.GetMovieDetailsByTitle(title)
-			if err != nil {
-				log.Printf("Error when getting movie details: %v", err)
-				continue
-			}
-			// Update the image URLs
-			movie.BackdropPath = tmdbImageBaseURL + movie.BackdropPath
-			movie.PosterPath = tmdbImageBaseURL + movie.PosterPath
-			movieRecommendations = append(movieRecommendations, movie)
+	// Successfully parsed recommendations
+	var movieRecommendations []models.Movie
+
+	for i, title := range responseBody.Recommendations {
+		movie, err := s.GetMovieDetailsByTitle(title)
+		if err != nil {
+			log.Printf("[GetRecommendations] error getting movie details for recommendation %d title=%q: %v", i+1, title, err)
+			continue
 		}
-
-		// recommendationsData, err := json.Marshal(movieRecommendations)
-		// if err == nil {
-		// 	setResp := valkeyClient.Do(ctx, valkeyClient.B().Set().Key(cacheKey).Value(string(recommendationsData)).ExSeconds(3600).Build())
-		// 	if setResp.Error() != nil {
-		// 		log.Printf("Error caching recommendations: %v", setResp.Error())
-		// 	}
-		// } else {
-		// 	log.Printf("Error marshalling recommendations: %v", err)
-		// }
-
-		return movieRecommendations, nil
+		// Update the image URLs
+		movie.BackdropPath = tmdbImageBaseURL + movie.BackdropPath
+		movie.PosterPath = tmdbImageBaseURL + movie.PosterPath
+		movieRecommendations = append(movieRecommendations, movie)
 	}
 
-	// If no recommendations, try to unmarshal into the error response
-	if err := json.Unmarshal(responseBody, &errorResponse); err == nil && errorResponse.Error != "" {
-		log.Printf("Error when calling sagemaker: %v", err)
-		return []models.Movie{}, nil
-	}
+	// recommendationsData, err := json.Marshal(movieRecommendations)
+	// if err == nil {
+	// 	setResp := valkeyClient.Do(ctx, valkeyClient.B().Set().Key(cacheKey).Value(string(recommendationsData)).ExSeconds(3600).Build())
+	// 	if setResp.Error() != nil {
+	// 		log.Printf("Error caching recommendations: %v", setResp.Error())
+	// 	}
+	// } else {
+	// 	log.Printf("Error marshalling recommendations: %v", err)
+	// }
 
-	// If neither works, return a generic error
-	log.Printf("Unexpected response when calling SageMaker endpoint: %v", err)
-	return nil, fmt.Errorf("unexpected response from SageMaker: %s", string(responseBody))
+	log.Printf("[GetRecommendations] done movieName=%q: returning %d movies", movieName, len(movieRecommendations))
+	return movieRecommendations, nil
+
 }
 
 func (s *MovieService) GetRecommendationsGrouped(movieNames []string) ([]models.Movie, error) {
