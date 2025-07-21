@@ -1,4 +1,4 @@
-module github.com/movierecuh/movies-service
+module github.com/findamovieforme/movies-service
 
 go 1.23.2
 

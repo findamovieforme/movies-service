@@ -6,8 +6,8 @@ import (
 	"net/http"
 	"runtime"
 
-	"github.com/movierecuh/movies-service/helpers"
-	"github.com/movierecuh/movies-service/routers"
+	"github.com/findamovieforme/movies-service/helpers"
+	"github.com/findamovieforme/movies-service/routers"
 )
 
 func main() {

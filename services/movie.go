@@ -12,8 +12,8 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/sagemakerruntime"
-	"github.com/movierecuh/movies-service/helpers"
-	"github.com/movierecuh/movies-service/models"
+	"github.com/findamovieforme/movies-service/helpers"
+	"github.com/findamovieforme/movies-service/models"
 	"github.com/openai/openai-go" // imported as openai
 	"github.com/openai/openai-go/option"
 	"github.com/ryanbradynd05/go-tmdb"

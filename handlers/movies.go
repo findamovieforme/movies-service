@@ -7,7 +7,7 @@ import (
 	"net/http"
 	"strconv"
 
-	"github.com/movierecuh/movies-service/services"
+	"github.com/findamovieforme/movies-service/services"
 )
 
 type MovieHandler struct {
