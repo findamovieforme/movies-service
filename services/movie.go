@@ -1,18 +1,21 @@
 package services
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log"
 	"math/rand/v2"
+	"net/http"
+	"net/url"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/findamovieforme/movies-service/helpers"
 	"github.com/findamovieforme/movies-service/models"
-	"github.com/openai/openai-go" // imported as openai
-	"github.com/openai/openai-go/option"
 	"github.com/ryanbradynd05/go-tmdb"
 )
 
@@ -48,18 +51,11 @@ type MovieService struct {
 
 const tmdbImageBaseURL = "https://image.tmdb.org/t/p/w500"
 
-var openaiAPIKey string
-
 func GetMovieService() *MovieService {
 	apiKey, err := helpers.LoadEnv("TMDB_API_KEY")
 	if err != nil {
 		log.Fatal(err)
 	}
-	openai, err := helpers.LoadEnv("OPENAI_API_KEY")
-	if err != nil {
-		log.Fatal(err)
-	}
-	openaiAPIKey = openai
 
 	config := tmdb.Config{
 		APIKey:   apiKey,
@@ -283,14 +279,43 @@ func getGenresWithTrendingMovies(s *MovieService, genres *tmdb.Genre) []models.G
 	// wg.Wait()
 	return genreList
 }
+type geminiGenerateContentRequest struct {
+	Contents []geminiContent `json:"contents"`
+}
+
+type geminiContent struct {
+	Parts []geminiPart `json:"parts"`
+}
+
+type geminiPart struct {
+	Text string `json:"text"`
+}
+
+type geminiGenerateContentResponse struct {
+	Candidates []struct {
+		Content struct {
+			Parts []struct {
+				Text string `json:"text"`
+			} `json:"parts"`
+		} `json:"content"`
+	} `json:"candidates"`
+}
 
 func (s *MovieService) GetGptResponse(userPrompt string) ([]models.Movie, error) {
-	client := openai.NewClient(
-		option.WithAPIKey(openaiAPIKey),
-	)
+	if len(userPrompt) > 2000 {
+		return nil, fmt.Errorf("prompt too long: maximum 2000 characters")
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 12*time.Second)
+	defer cancel()
+
+	apiKey, err := helpers.LoadEnv("GEMINI_API_KEY")
+	if err != nil {
+		return nil, fmt.Errorf("GEMINI_API_KEY not set: %w", err)
+	}
 
 	// Pre-built instruction to GPT
-	preBuiltPrompt := fmt.Sprintf(`You are a movie recommendation assistant. The user will describe what they liked about a movie, focusing on themes, vibes, or specific aspects. Suggest up to 5 movies that match these described themes or elements. The user can also describe a story, you will have to find the movie and similar movies after that. Respond only with a JSON array of movie titles in this format:
+	prompt := fmt.Sprintf(`You are a movie recommendation assistant. The user will describe what they liked about a movie, focusing on themes, vibes, or specific aspects. Suggest up to 5 movies that match these described themes or elements. The user can also describe a story, you will have to find the movie and similar movies after that. Respond only with a JSON array of movie titles in this format:
 [
   "Movie Title 1",
   "Movie Title 2",
@@ -299,24 +324,75 @@ func (s *MovieService) GetGptResponse(userPrompt string) ([]models.Movie, error)
 
 User's prompt: %s`, userPrompt)
 
-	// Call GPT API with the pre-built instruction
-	chatCompletion, err := client.Chat.Completions.New(context.TODO(), openai.ChatCompletionNewParams{
-		Messages: openai.F([]openai.ChatCompletionMessageParamUnion{
-			openai.UserMessage(preBuiltPrompt),
-		}),
-		Model:     openai.F(openai.ChatModelGPT4oMini), // GPT-4 or 3.5
-		MaxTokens: openai.Int(200),                     // Allow space for a JSON array
-	})
-	fmt.Println(chatCompletion.Choices[0].Message.Content)
+	reqBody := geminiGenerateContentRequest{
+		Contents: []geminiContent{
+			{
+				Parts: []geminiPart{
+					{Text: prompt},
+				},
+			},
+		},
+	}
+
+	requestBody, err := json.Marshal(reqBody)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to marshal Gemini request: %w", err)
+	}
+
+	// Use stable v1 Gemini text model; adjust if you prefer a different one.
+	endpoint, err := url.Parse("https://generativelanguage.googleapis.com/v1/models/gemini-2.5-flash:generateContent")
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse Gemini endpoint: %w", err)
+	}
+
+	query := endpoint.Query()
+	query.Set("key", apiKey)
+	endpoint.RawQuery = query.Encode()
+
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint.String(), bytes.NewReader(requestBody))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create Gemini request: %w", err)
+	}
+	httpReq.Header.Set("Content-Type", "application/json")
+
+	client := &http.Client{}
+	httpResp, err := client.Do(httpReq)
+	if err != nil {
+		return nil, fmt.Errorf("Gemini HTTP request failed: %w", err)
+	}
+	defer httpResp.Body.Close()
+
+	if httpResp.StatusCode < 200 || httpResp.StatusCode >= 300 {
+		bodyBytes, _ := io.ReadAll(httpResp.Body)
+		snippet := string(bodyBytes)
+		if len(snippet) > 300 {
+			snippet = snippet[:300] + "..."
+		}
+		return nil, fmt.Errorf("Gemini HTTP status %d: %s", httpResp.StatusCode, snippet)
+	}
+
+	var geminiResp geminiGenerateContentResponse
+	if err := json.NewDecoder(httpResp.Body).Decode(&geminiResp); err != nil {
+		return nil, fmt.Errorf("failed to decode Gemini response: %w", err)
+	}
+
+	if len(geminiResp.Candidates) == 0 || len(geminiResp.Candidates[0].Content.Parts) == 0 {
+		return nil, fmt.Errorf("Gemini returned no candidates")
 	}
 
 	// Parse GPT response (JSON array of movie titles)
+	completion := strings.TrimSpace(geminiResp.Candidates[0].Content.Parts[0].Text)
+
+	// Try to extract JSON array if extra text is present
+	if start := strings.Index(completion, "["); start != -1 {
+		if end := strings.LastIndex(completion, "]"); end > start {
+			completion = completion[start : end+1]
+		}
+	}
+
 	var movieTitles []string
-	err = json.Unmarshal([]byte(chatCompletion.Choices[0].Message.Content), &movieTitles)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse GPT response: %v", err)
+	if err := json.Unmarshal([]byte(completion), &movieTitles); err != nil {
+		return nil, fmt.Errorf("failed to parse Gemini completion as JSON array: %w (completion: %s)", err, completion)
 	}
 
 	// Query TMDB for movie details

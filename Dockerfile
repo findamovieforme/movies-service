@@ -20,10 +20,14 @@ WORKDIR /app
 COPY helpers/requirements.txt /app/helpers/requirements.txt
 RUN pip install --no-cache-dir -r /app/helpers/requirements.txt
 
-# Copy Go binary + model files
+# Copy Go binary, Python app, and model files
 COPY --from=builder /app/movies-service /app/movies-service
 COPY helpers/predictor.py /app/helpers/predictor.py
+COPY helpers/app.py /app/helpers/app.py
+COPY entrypoint.sh /app/entrypoint.sh
 COPY recommendation-model /app/recommendation-model
 
-EXPOSE 8081
-CMD ["/app/movies-service"]
+RUN chmod +x /app/entrypoint.sh
+
+EXPOSE 8081 5000
+CMD ["/app/entrypoint.sh"]
