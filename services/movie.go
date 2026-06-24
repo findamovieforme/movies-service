@@ -279,6 +279,7 @@ func getGenresWithTrendingMovies(s *MovieService, genres *tmdb.Genre) []models.G
 	// wg.Wait()
 	return genreList
 }
+
 type geminiGenerateContentRequest struct {
 	Contents []geminiContent `json:"contents"`
 }
